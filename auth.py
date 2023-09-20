@@ -4,33 +4,31 @@ from base64 import b64encode
 from datetime import datetime as dt
 from urllib.error import HTTPError
 
-import dotenv
 import requests
+import streamlit as st
 
-ENV_PATH = "./.env"
 DATE_FORMAT = "%m/%d/%y %H:%M:%S"
-dotenv.load_dotenv(ENV_PATH)
 
 class Authenticator:
     def __init__(
         self,
-        client_id: str = os.getenv("CLIENT_ID"),
-        client_secret: str = os.getenv("CLIENT_SECRET"),
-        token: str = os.getenv("TOKEN"),
-        expiry: str = os.getenv("EXPIRY"),
+        client_id: str = st.secrets["CLIENT_ID"],
+        client_secret: str = st.secrets["CLIENT_SECRET"],
     ) -> str:
+        
         self.client_id = client_id
         self.client_secret = client_secret
-        self.token = token
-        self.expiry = dt.strptime(expiry, DATE_FORMAT) if expiry else None
+
+        if 'token' not in st.session_state:
+            self.get_token()
 
     def get_token(self):
         if (
-            self.token is not None
-            and self.expiry is not None
-            and dt.now() < self.expiry
+            'token' in st.session_state
+            and 'expiry' in st.session_state
+            and dt.now() < st.session_state["expiry"]
         ):
-            return self.token
+            return st.session_state["token"]
 
         encoded = b64encode(
             (self.client_id + ":" + self.client_secret).encode("ascii")
@@ -46,19 +44,12 @@ class Authenticator:
 
         if r.status_code == 200:
             response_data = r.json()
-            self.token = response_data["access_token"]
-            self.expiry = request_time + datetime.timedelta(
+            st.session_state["token"] = response_data["access_token"]
+            st.session_state["expiry"] = request_time + datetime.timedelta(
                 seconds=response_data["expires_in"]
             )
 
-            dotenv.set_key(ENV_PATH, key_to_set="TOKEN", value_to_set=self.token)
-            dotenv.set_key(
-                ENV_PATH,
-                key_to_set="EXPIRY",
-                value_to_set=dt.strftime(self.expiry, DATE_FORMAT),
-            )
-
-            return self.token
+            return st.session_state["token"]
         else:
             raise HTTPError(
                 url="https://accounts.spotify.com/api/token",

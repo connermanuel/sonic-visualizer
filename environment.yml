@@ -1,4 +1,7 @@
 name: spotify
+channels:
+  - conda-forge
+  - defaults
 dependencies:
   - pandas=2.1.0
   - plotly=5.16.1
